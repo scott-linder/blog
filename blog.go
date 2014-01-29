@@ -21,35 +21,50 @@ const (
 	dateFormat = "2006-01-02"
 	// fieldSeparator is what is used to split post filenames.
 	fieldSeparator = "."
+	// defTplPathFmt is the format string of default path for templates.
+	defTplPathFmt = "../template/%s.tpl"
+	// defPostDirFmt is the default path to posts.
+	defPostDirFmt = "../%s/"
+	// defPageSize is the default number of posts to a page.
+	defPageSize = 5
 )
 
 // Blog is a blog site Handler..
 type Blog struct {
+	// name is the Blog instance's unique name.
+	name string
 	// Router is the mux router which Blog resides under.
-	Router *mux.Router
+	router *mux.Router
 	// TplPath is the relative path to the HTML template for the Blog.
-	TplPath string
+	tplPath string
 	// PostDir is the relative path to the directory containing blog posts.
-	PostDir string
+	postDir string
 	// PageSize is the number of posts to a page.
-	PageSize int
+	pageSize int
+}
+
+// NewBlogSimple is a shorthand for NewBlog with default arguments.
+func NewBlogSimple(name string, router *mux.Router) *Blog {
+	return NewBlog(name, router, fmt.Sprintf(defTplPathFmt, name),
+		fmt.Sprintf(defPostDirFmt, name), defPageSize)
 }
 
 // NewBlog returns a new Blog instance.
-func NewBlog(router *mux.Router, tplPath, postDir string,
+func NewBlog(name string, router *mux.Router, tplPath, postDir string,
 	pageSize int) (blog *Blog) {
-	blog = &Blog{Router: router, TplPath: tplPath,
-		PostDir: postDir, PageSize: pageSize}
+
+	blog = &Blog{name: name, router: router, tplPath: tplPath,
+		postDir: postDir, pageSize: pageSize}
 	// Hook up paths for the main blog and post permalinks.
 	router.Handle("/", blog)
 	router.Handle("/post/{year:[0-9]+}/{month:[0-9]+}/{day:[0-9]+}/{name}/",
-		blog).Name("post")
+		blog).Name(name + "-post")
 	return
 }
 
 func (self Blog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	tpl, err := template.ParseFiles(self.TplPath)
+	tpl, err := template.ParseFiles(self.tplPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +79,7 @@ func (self Blog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
 	switch mux.CurrentRoute(r).GetName() {
-	case "post":
+	case self.name + "-post":
 		data.Posts = make([]post, 1)
 		newPost, err := self.getPost(vars["year"], vars["month"],
 			vars["day"], vars["name"])
@@ -114,7 +129,7 @@ func (self Blog) newPost(path string, info os.FileInfo) (*post, error) {
 	postName := nameField
 
 	// Create a permalink to this post using the named route "post".
-	postPermalinkURL, err := self.Router.Get("post").
+	postPermalinkURL, err := self.router.Get(self.name+"-post").
 		URL("year", fmt.Sprintf("%d", postDate.Year()),
 		"month", fmt.Sprintf("%d", postDate.Month()),
 		"day", fmt.Sprintf("%d", postDate.Day()),
@@ -142,7 +157,7 @@ func (self Blog) newPost(path string, info os.FileInfo) (*post, error) {
 // getPost retrieves a post from the given identifying information.
 func (self Blog) getPost(year, month, day, name string) (*post, error) {
 	// Use permalink info to construct file path.
-	path := self.PostDir + fmt.Sprintf("%04s-%02s-%02s.%s.md", year, month, day, name)
+	path := self.postDir + fmt.Sprintf("%04s-%02s-%02s.%s.md", year, month, day, name)
 	// Make sure the file exists and get info.
 	info, err := os.Stat(path)
 	if err != nil {
@@ -177,7 +192,7 @@ func (self Blog) getPage(page int) ([]post, error) {
 
 		return nil
 	}
-	err := filepath.Walk(self.PostDir, buildPosts)
+	err := filepath.Walk(self.postDir, buildPosts)
 	if err != nil {
 		return nil, err
 	}
