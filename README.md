@@ -17,6 +17,11 @@ and adding a new route to your mux.
 
 ## Usage ##
 
+Installation:
+```
+$ go get github.com/scott-linder/blog
+```
+
 In your template:
 ```HTML
 {{range $post := .Posts}}
@@ -29,10 +34,10 @@ In your template:
 {{end}}
 ```
 
-In your main Go source:
+In your source:
 ```Go
 r := mux.NewRouter()
 sb := r.PathPrefix("/blog").Subrouter()
-blog.NewBlog(sb, "path/to/template.tpl", "path/to/posts/", pageSize)
+blog.NewBlog("name", sb, "path/to/template.tpl", "path/to/posts/", pageSize)
 ```
 
